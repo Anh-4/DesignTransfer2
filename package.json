@@ -1,7 +1,7 @@
 {
   "name": "design-transfer-2",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Design Transfer 2 - đưa design từ ảnh mẫu lên phôi áo/quần trắng bằng AI (OpenRouter hoặc Google Gemini) cho Kozmoz Studio",
   "author": "Kozmoz Studio",
   "main": "electron/main.cjs",

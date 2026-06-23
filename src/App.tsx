@@ -2,12 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { Flow, MODELS_BY_PROVIDER, CUSTOM_MODEL_ID, Provider, DEFAULT_PROVIDER, getProviderInfo } from './flow-sdk';
 import { SegmentedToggle, ZoomModal, Dropdown } from './components/Primitives';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { InputState, GeneratedResult, AspectRatio, MediaItem } from './types';
+import { InputState, GeneratedResult, AspectRatio, MediaItem, ProductType } from './types';
 
 const NUM_OPTIONS = 2;
 
+// Loại sản phẩm phôi -> nhãn dropdown + mô tả đưa vào prompt cho AI.
+const PRODUCT_TYPES: { value: ProductType; label: string }[] = [
+  { value: 'polo', label: 'Polo' },
+  { value: 'tshirt', label: 'T-shirt' },
+  { value: 'hoodie-jogger', label: 'Combo Hoodie + Jogger' },
+];
+const PRODUCT_TYPE_PROMPT: Record<ProductType, string> = {
+  polo: 'a POLO SHIRT',
+  tshirt: 'a T-SHIRT',
+  'hoodie-jogger': 'a HOODIE + JOGGER set (a matching hoodie and jogger pants)',
+};
+
 /** Ghép prompt chuyển design lên phôi từ 2 ảnh tham chiếu (theo đúng thứ tự truyền vào). */
-function buildPrompt(notes: string, variant: number): string {
+function buildPrompt(notes: string, variant: number, productType: ProductType): string {
   const base = `You are a professional print-on-demand apparel mockup generator specialized in racing-style apparel.
 
 You are given two reference images, in this EXACT order:
@@ -16,7 +28,7 @@ You are given two reference images, in this EXACT order:
 
 PRESERVE THE BLANK PRODUCT — CRITICAL: You may ONLY add a printed graphic on top of the existing blank product. You MUST NOT alter the product itself. Keep the EXACT SAME garment type, shape, silhouette, cut, collar, sleeves, fabric, base color, folds and wrinkles, and keep the EXACT SAME background/scene, lighting, shadows, pose and camera angle as IMAGE 2. Do NOT swap the garment for a different type (e.g. do not turn a polo into a t-shirt), do NOT redraw, reshape, recolor or replace the product, and do NOT change the background. The ONLY difference between IMAGE 2 and your output must be the newly printed design, applied so it follows the fabric's folds and curvature like a real print.
 
-DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). FIRST identify the GARMENT TYPE of the blank product in IMAGE 2, then design appropriately for that exact garment.
+DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). The blank product in IMAGE 2 is ${PRODUCT_TYPE_PROMPT[productType]} — design specifically for this product type, applying the matching GARMENT-SPECIFIC GUIDANCE below.
 
 The design is built PRIMARILY around IMAGE 1 — its DOMINANT colors (see COLOR rule) and its motorsport theme/identity are the CORE of the artwork. For STYLING ONLY, take CONCEPT inspiration from how real racing apparel looks: the apparel and outfits of current, popular, best-selling racing drivers, plus
 - the design concepts of current, active racing series and their teams (e.g. F1, MotoGP, WEC, 24h Le Mans) — jerseys, team wear and race kits,
@@ -24,10 +36,10 @@ The design is built PRIMARILY around IMAGE 1 — its DOMINANT colors (see COLOR 
 Everything above is CONCEPT REFERENCE ONLY — never copy a real team/sponsor/driver design or its logos. Use it only to inform the look, then create a BRAND-NEW, original design driven by IMAGE 1's colors and theme.
 
 GARMENT-SPECIFIC GUIDANCE:
-- HOODIE / JOGGER / PANTS: bolder, larger graphics work well — paneled racing graphics, all-over or large back/leg prints, in the spirit of full race-team kits.
-- POLO SHIRT / T-SHIRT: design like the polos and t-shirts actually worn by racing drivers, by pit crew / paddock & logistics staff, and by official team & sponsor merchandise (e.g. McLaren, Aston Martin, Red Bull, WEC, 24h Le Mans). Use the tasteful, restrained placement typical of these shirts — a left-chest crest/logo, small sleeve accents, sponsor-style wordmarks and clean collar-appropriate styling — rather than one huge full-front print. Keep it clean and wearable like real team/sponsor apparel.
+- HOODIE + JOGGER (combo set): take CONCEPT inspiration from the actual RACE SUITS / driver overalls worn by real racing drivers — their paneling, color-blocking, stripe work, sponsor-patch placement and team-kit layout — and translate that into a matching hoodie + jogger set. Bolder, larger graphics with paneled and all-over prints work well here.
+- POLO SHIRT / T-SHIRT: take CONCEPT inspiration from the polos and t-shirts actually worn by racing drivers, by pit crew / paddock & logistics staff at the track, and from official team & sponsor shirts (e.g. McLaren, Aston Martin, Red Bull, WEC, 24h Le Mans). Use the tasteful, restrained placement typical of these shirts — a left-chest crest/logo, small sleeve accents, sponsor-style wordmarks and clean collar-appropriate styling — rather than one huge full-front print. Keep it clean and wearable like real team/sponsor apparel.
 
-Synthesize these influences into a fresh, modern, market-ready racing-apparel design. Do NOT copy any single existing jersey, team kit or sponsor design 1:1 — create something new.
+Synthesize these influences into a fresh, modern, market-ready racing-apparel design. Do NOT copy any single existing jersey, race suit, team kit or sponsor design 1:1 — create something new. REMEMBER: whatever the garment, those references are ONLY concept inspiration — the design must stay centered on the uploaded vehicle (IMAGE 1), and the CAR'S COLOR must remain the clearly DOMINANT color of the entire design.
 
 TASK: Create a brand-new graphic design themed on the subject of IMAGE 1, using that subject's colors (the car's body color) as the DOMINANT palette, in a racing-apparel style and layout that YOU compose and that suits the garment type in IMAGE 2, and print it realistically onto that blank product — as if it were truly screen-printed on it, following the fabric folds, curvature and lighting so the result looks like a real product photo.
 
@@ -148,6 +160,7 @@ export default function App() {
   const [inputs, setInputs] = useState<InputState>({
     sourceImage: null,
     blankImage: null,
+    productType: 'polo',
     notes: '',
     aspectRatio: '1:1',
   });
@@ -250,11 +263,12 @@ export default function App() {
     const refs = [src.mediaId, blk.mediaId];
     const notes = inputs.notes;
     const aspectRatio = inputs.aspectRatio;
+    const productType = inputs.productType;
 
     // Tạo 3 mẫu SONG SONG — mẫu nào xong hiện trước, lỗi 1 mẫu không chặn 2 mẫu kia.
     for (let i = 0; i < NUM_OPTIONS; i++) {
       const idx = i;
-      const prompt = buildPrompt(notes, idx);
+      const prompt = buildPrompt(notes, idx, productType);
       Flow.generate.image({ prompt, model: effectiveModel, provider, referenceImageMediaIds: refs, aspectRatio })
         .then((out) => {
           setResults((prev) => {
@@ -332,6 +346,13 @@ export default function App() {
               className="border border-[#595959] hover:border-[#7a7a7a] focus:border-[#969696] rounded-xl w-full px-3 py-2.5 resize-none bg-transparent text-[11px] font-medium text-white placeholder-[rgba(218,220,224,0.3)] tracking-[0.1px] focus:outline-none transition-colors dark-scrollbar"
             />
           </div>
+
+          <Dropdown
+            label="Loại sản phẩm (phôi úp lên)"
+            value={inputs.productType}
+            items={PRODUCT_TYPES}
+            onChange={(v) => setInputs((prev) => ({ ...prev, productType: v as ProductType }))}
+          />
 
           <SegmentedToggle
             label="Tỉ lệ ảnh"

@@ -1,5 +1,8 @@
 export type AspectRatio = '1:1' | '4:5' | '3:4' | '9:16' | '16:9';
 
+// Loại sản phẩm phôi do người dùng chọn -> AI tham chiếu đúng concept.
+export type ProductType = 'polo' | 'tshirt' | 'hoodie-jogger';
+
 export interface MediaItem {
   mediaId: string;
   base64: string;
@@ -12,6 +15,8 @@ export interface InputState {
   sourceImage: MediaItem | null;
   // Ô 2: ảnh phôi trắng/trơn — canvas để AI in design lên.
   blankImage: MediaItem | null;
+  // Loại sản phẩm phôi (người dùng chọn) -> AI tham chiếu đúng concept design.
+  productType: ProductType;
   // Ghi chú thêm cho AI (tuỳ chọn): màu, chữ, vị trí in...
   notes: string;
   aspectRatio: AspectRatio;
