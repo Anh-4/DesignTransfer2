@@ -11,22 +11,29 @@ function buildPrompt(notes: string, variant: number): string {
   const base = `You are a professional print-on-demand apparel mockup generator specialized in racing-style apparel.
 
 You are given two reference images, in this EXACT order:
-- IMAGE 1 — SUBJECT / THEME SOURCE: the subject, theme and visual content the new design must be based on (typically a vehicle/car or racing machine, but it may also be a character or team). Use it as the inspiration and main subject of the artwork. IMPORTANT — COLOR: take the DOMINANT color palette of the new design from this subject's real colors. If the subject is a vehicle/car, the car's main body color MUST be the leading, dominant color of the whole design. You may add a few tasteful accent/secondary colors, but the subject's (car's) color must clearly dominate. Do NOT paste the raw photo onto the product; turn it into a clean, print-ready graphic.
-- IMAGE 2 — BLANK PRODUCT: a plain blank product (white/neutral apparel, e.g. a shirt or pants). This is the canvas. Keep its exact shape, color, fabric, folds, wrinkles, lighting, shadows and camera perspective unchanged.
+- IMAGE 1 — THEME & COLOR SOURCE: the motorsport theme, identity and color palette the new design must be based on (typically a vehicle/car or racing machine, but it may also be a character or team). Use it ONLY as inspiration for the theme, mood and — above all — the COLORS; it is NOT something to draw on the apparel. IMPORTANT — COLOR: take the DOMINANT color palette of the new design from this subject's real colors. If it is a vehicle/car, the car's main body color MUST be the leading, dominant color of the whole design. You may add a few tasteful accent/secondary colors, but that dominant color must clearly lead. NEVER paste, draw, render or depict the car/vehicle (or its photo) on the product — translate it into colors and motorsport theme only.
+- IMAGE 2 — BLANK PRODUCT: a plain blank apparel product (e.g. a hoodie, jogger/pants, polo shirt or t-shirt). This is the canvas you print the design onto.
 
-DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). Compose the graphic's layout, composition, graphic placement, typography and overall art style on your own, drawing inspiration from:
-- real apparel design language for shirts and pants,
-- the design concepts of current, active racing series and their teams (e.g. F1, MotoGP) — their jerseys, team wear and race kits,
-- racing jerseys / teamwear themed specifically around the vehicle or racing machine shown in IMAGE 1,
-- popular, trending ("hot"), best-selling apparel graphic designs.
-Synthesize these influences into a fresh, modern, market-ready racing-apparel design. Do NOT copy any single existing jersey 1:1 — create something new.
+PRESERVE THE BLANK PRODUCT — CRITICAL: You may ONLY add a printed graphic on top of the existing blank product. You MUST NOT alter the product itself. Keep the EXACT SAME garment type, shape, silhouette, cut, collar, sleeves, fabric, base color, folds and wrinkles, and keep the EXACT SAME background/scene, lighting, shadows, pose and camera angle as IMAGE 2. Do NOT swap the garment for a different type (e.g. do not turn a polo into a t-shirt), do NOT redraw, reshape, recolor or replace the product, and do NOT change the background. The ONLY difference between IMAGE 2 and your output must be the newly printed design, applied so it follows the fabric's folds and curvature like a real print.
 
-TASK: Create a brand-new graphic design themed on the subject of IMAGE 1, using that subject's colors (the car's body color) as the DOMINANT palette, executed in a racing-apparel design style and layout that YOU compose (per the guidance above), and print it realistically onto the blank product from IMAGE 2 — as if it were truly screen-printed on it. The print must follow the fabric folds, curvature and lighting so the result looks like a real product photo.
+DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). FIRST identify the GARMENT TYPE of the blank product in IMAGE 2, then design appropriately for that exact garment. Compose the layout, graphic placement, typography and art style on your own. PRIORITIZE referencing the actual apparel and outfits worn by current, popular, best-selling racing drivers; then also draw inspiration from:
+- the design concepts of current, active racing series and their teams (e.g. F1, MotoGP, WEC, 24h Le Mans) — jerseys, team wear and race kits,
+- popular, trending ("hot"), best-selling racing-apparel and driver merch designs,
+- the motorsport theme and COLORS of IMAGE 1 (theme and colors only — never a picture of the car).
+
+GARMENT-SPECIFIC GUIDANCE:
+- HOODIE / JOGGER / PANTS: bolder, larger graphics work well — paneled racing graphics, all-over or large back/leg prints, in the spirit of full race-team kits.
+- POLO SHIRT / T-SHIRT: design like the polos and t-shirts actually worn by racing drivers, by pit crew / paddock & logistics staff, and by official team & sponsor merchandise (e.g. McLaren, Aston Martin, Red Bull, WEC, 24h Le Mans). Use the tasteful, restrained placement typical of these shirts — a left-chest crest/logo, small sleeve accents, sponsor-style wordmarks and clean collar-appropriate styling — rather than one huge full-front print. Keep it clean and wearable like real team/sponsor apparel.
+
+Synthesize these influences into a fresh, modern, market-ready racing-apparel design. Do NOT copy any single existing jersey, team kit or sponsor design 1:1 — create something new.
+
+TASK: Create a brand-new graphic design themed on the subject of IMAGE 1, using that subject's colors (the car's body color) as the DOMINANT palette, in a racing-apparel style and layout that YOU compose and that suits the garment type in IMAGE 2, and print it realistically onto that blank product — as if it were truly screen-printed on it, following the fabric folds, curvature and lighting so the result looks like a real product photo.
 
 STRICT RULES:
 - COLOR PRIORITY: the design's dominant/primary color MUST come from the subject in IMAGE 1 (e.g. the car's color).
+- NO VEHICLE IMAGERY: ABSOLUTELY do NOT put any image, photo, illustration or rendering of the car/vehicle onto the apparel. The car is a theme and color source ONLY. The printed design must look like real racing-driver apparel (livery-style stripes, team/sponsor wordmarks, crests, racing typography), inspired by what current, hot, best-selling drivers actually wear.
+- PRINT ONLY: only add the design; never change the garment, its shape, or the background of IMAGE 2 (see "PRESERVE THE BLANK PRODUCT" above).
 - The final image shows ONLY the product from IMAGE 2. Do NOT show IMAGE 1 anywhere in the output.
-- Keep the product's original color, shape and perspective from IMAGE 2 unless the user says otherwise.
 - Output ONE single high-resolution, photorealistic product mockup image.`;
   const variantHint = `\n\nThis is creative VARIATION #${variant + 1} of ${NUM_OPTIONS}. Make it visibly DIFFERENT from the other variations — vary the artwork's composition, framing, accent colors and graphic arrangement — but KEEP the subject's (car's) color as the dominant palette, and strictly obey every rule above.`;
   const extra = notes.trim()
