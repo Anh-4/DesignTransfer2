@@ -47,6 +47,7 @@ STRICT RULES:
 // Version hiển thị: dùng define lúc build; nếu chưa thay (vd. dev) thì fallback an toàn
 // (typeof trên biến chưa khai báo KHÔNG ném lỗi -> tránh trắng trang).
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '0.1.0';
+const BUILD_DATE = typeof __BUILD_DATE__ !== 'undefined' ? __BUILD_DATE__ : '';
 
 /** 1 ô upload (có số thứ tự, tiêu đề, mô tả; xem trước + xoá ảnh). */
 const UploadBox: React.FC<{
@@ -298,7 +299,7 @@ export default function App() {
             <span className="material-symbols-outlined text-[20px] text-amber-400">apparel</span>
             <h1 className="text-[14px] font-semibold">Design Transfer 2</h1>
           </div>
-          <span className="text-[10px] text-white/30">v{APP_VERSION}</span>
+          <span className="text-[10px] text-white/30">v{APP_VERSION}{BUILD_DATE ? ` · ${BUILD_DATE}` : ''}</span>
         </header>
 
         <div className="flex-1 overflow-y-auto dark-scrollbar p-4 flex flex-col gap-4">
