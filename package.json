@@ -1,0 +1,52 @@
+{
+  "name": "design-transfer-2",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Design Transfer 2 - đưa design từ ảnh mẫu lên phôi áo/quần trắng bằng AI (OpenRouter hoặc Google Gemini) cho Kozmoz Studio",
+  "author": "Kozmoz Studio",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "electron:dev": "concurrently -k \"vite\" \"wait-on tcp:127.0.0.1:5173 && cross-env ELECTRON_DEV=1 electron .\"",
+    "dist:win": "npm run build && electron-builder --win portable"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "autoprefixer": "^10.4.19",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "postcss": "^8.4.39",
+    "tailwindcss": "^3.4.6",
+    "typescript": "^5.5.3",
+    "vite": "^5.3.4",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.kozmozstudio.designtransfer2",
+    "productName": "Design Transfer 2",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "Design-Transfer-2-${version}-portable.exe"
+    }
+  }
+}
