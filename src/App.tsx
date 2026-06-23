@@ -16,10 +16,12 @@ You are given two reference images, in this EXACT order:
 
 PRESERVE THE BLANK PRODUCT — CRITICAL: You may ONLY add a printed graphic on top of the existing blank product. You MUST NOT alter the product itself. Keep the EXACT SAME garment type, shape, silhouette, cut, collar, sleeves, fabric, base color, folds and wrinkles, and keep the EXACT SAME background/scene, lighting, shadows, pose and camera angle as IMAGE 2. Do NOT swap the garment for a different type (e.g. do not turn a polo into a t-shirt), do NOT redraw, reshape, recolor or replace the product, and do NOT change the background. The ONLY difference between IMAGE 2 and your output must be the newly printed design, applied so it follows the fabric's folds and curvature like a real print.
 
-DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). FIRST identify the GARMENT TYPE of the blank product in IMAGE 2, then design appropriately for that exact garment. Compose the layout, graphic placement, typography and art style on your own. PRIORITIZE referencing the actual apparel and outfits worn by current, popular, best-selling racing drivers; then also draw inspiration from:
+DESIGN STYLE — DECIDE IT YOURSELF (no style-reference image is provided). FIRST identify the GARMENT TYPE of the blank product in IMAGE 2, then design appropriately for that exact garment.
+
+The design is built PRIMARILY around IMAGE 1 — its DOMINANT colors (see COLOR rule) and its motorsport theme/identity are the CORE of the artwork. For STYLING ONLY, take CONCEPT inspiration from how real racing apparel looks: the apparel and outfits of current, popular, best-selling racing drivers, plus
 - the design concepts of current, active racing series and their teams (e.g. F1, MotoGP, WEC, 24h Le Mans) — jerseys, team wear and race kits,
-- popular, trending ("hot"), best-selling racing-apparel and driver merch designs,
-- the motorsport theme and COLORS of IMAGE 1 (theme and colors only — never a picture of the car).
+- popular, trending ("hot"), best-selling racing-apparel and driver merch designs.
+Everything above is CONCEPT REFERENCE ONLY — never copy a real team/sponsor/driver design or its logos. Use it only to inform the look, then create a BRAND-NEW, original design driven by IMAGE 1's colors and theme.
 
 GARMENT-SPECIFIC GUIDANCE:
 - HOODIE / JOGGER / PANTS: bolder, larger graphics work well — paneled racing graphics, all-over or large back/leg prints, in the spirit of full race-team kits.
