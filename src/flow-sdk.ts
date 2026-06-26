@@ -13,7 +13,7 @@ export interface ImageModel { id: string; label: string }
 export const CUSTOM_MODEL_ID = '__custom__';
 
 // Nhà cung cấp AI hỗ trợ. Mỗi provider có API key + danh sách model riêng.
-export type Provider = 'openrouter' | 'gemini';
+export type Provider = 'openrouter' | 'gemini' | 'openai';
 export interface ProviderInfo {
   id: Provider;
   label: string;
@@ -24,6 +24,7 @@ export interface ProviderInfo {
 export const PROVIDERS: ProviderInfo[] = [
   { id: 'openrouter', label: 'OpenRouter',    storageKey: 'OPENROUTER_API_KEY', envKey: 'VITE_OPENROUTER_API_KEY', keyUrl: 'https://openrouter.ai/keys' },
   { id: 'gemini',     label: 'Google Gemini', storageKey: 'GEMINI_API_KEY',     envKey: 'VITE_GEMINI_API_KEY',     keyUrl: 'https://aistudio.google.com/apikey' },
+  { id: 'openai',     label: 'OpenAI (GPT)',  storageKey: 'OPENAI_API_KEY',     envKey: 'VITE_OPENAI_API_KEY',     keyUrl: 'https://platform.openai.com/api-keys' },
 ];
 export const DEFAULT_PROVIDER: Provider = 'openrouter';
 
@@ -43,9 +44,15 @@ export const MODELS_BY_PROVIDER: Record<Provider, ImageModel[]> = {
     { id: 'gemini-3-pro-image-preview', label: '🍌 Nano Banana Pro' },
     { id: 'gemini-2.5-flash-image',     label: '🍌 Nano Banana / Flash' },
   ],
+  // OpenAI gọi trực tiếp: model ảnh là gpt-image-1 (qua endpoint images/edits, nhận nhiều ảnh).
+  openai: [
+    { id: 'gpt-image-1',      label: 'GPT Image 1' },
+    { id: 'gpt-image-1-mini', label: 'GPT Image 1 Mini' },
+  ],
 };
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENAI_EDITS_URL = 'https://api.openai.com/v1/images/edits';
 const geminiUrl = (model: string, key: string): string =>
   `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
 
@@ -186,6 +193,62 @@ async function generateWithGemini(opts: GenOpts, key: string): Promise<MediaResu
   throw new Error(txt || 'Gemini không trả về ảnh. Thử lại, đổi mô tả hoặc đổi model.');
 }
 
+/** base64 -> Blob để gửi multipart cho OpenAI (Images edits nhận file, không nhận data URL). */
+function base64ToBlob(base64: string, mimeType: string): Blob {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mimeType || 'image/png' });
+}
+
+// gpt-image-1 chỉ nhận vài size cố định -> ánh xạ tỉ lệ của app sang size gần nhất.
+function openAISize(aspect?: string): '1024x1024' | '1536x1024' | '1024x1536' {
+  switch (aspect) {
+    case '16:9': return '1536x1024';
+    case '4:5':
+    case '3:4':
+    case '9:16': return '1024x1536';
+    default: return '1024x1024'; // 1:1 và mặc định
+  }
+}
+
+/** Sinh ảnh qua OpenAI trực tiếp (Images edits — nhận nhiều ảnh tham chiếu theo thứ tự). */
+async function generateWithOpenAI(opts: GenOpts, key: string): Promise<MediaResult> {
+  const form = new FormData();
+  form.append('model', opts.model);
+  form.append('prompt', opts.prompt);
+  form.append('size', openAISize(opts.aspectRatio));
+  form.append('n', '1');
+
+  let count = 0;
+  for (const id of opts.referenceImageMediaIds ?? []) {
+    const m = registry.get(id);
+    if (!m) continue;
+    const ext = (m.mimeType.split('/')[1] || 'png').replace('jpeg', 'jpg');
+    form.append('image[]', base64ToBlob(m.base64, m.mimeType), `ref-${count}.${ext}`);
+    count++;
+  }
+
+  // Không set Content-Type: để trình duyệt tự thêm boundary cho multipart/form-data.
+  const res = await fetch(OPENAI_EDITS_URL, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}` },
+    body: form,
+  });
+
+  if (!res.ok) {
+    let msg = `OpenAI lỗi ${res.status}`;
+    try { const j = await res.json(); msg = j?.error?.message || msg; } catch {}
+    throw new Error(msg);
+  }
+
+  const data = await res.json();
+  const b64: string | undefined = data?.data?.[0]?.b64_json;
+  if (b64) return storeResult('image/png', b64); // gpt-image-1 trả PNG mặc định
+
+  throw new Error('OpenAI không trả về ảnh. Thử lại, đổi mô tả hoặc đổi model.');
+}
+
 export const Flow = {
   media: {
     // filter giữ lại cho tương thích chữ ký gốc, hiện luôn lọc ảnh.
@@ -196,9 +259,9 @@ export const Flow = {
     image: async (opts: GenOpts & { provider?: Provider }): Promise<MediaResult> => {
       const provider = opts.provider ?? DEFAULT_PROVIDER;
       const key = getApiKey(provider);
-      return provider === 'gemini'
-        ? generateWithGemini(opts, key)
-        : generateWithOpenRouter(opts, key);
+      if (provider === 'gemini') return generateWithGemini(opts, key);
+      if (provider === 'openai') return generateWithOpenAI(opts, key);
+      return generateWithOpenRouter(opts, key);
     },
   },
 

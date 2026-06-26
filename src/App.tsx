@@ -182,7 +182,7 @@ export default function App() {
   const [provider, setProvider] = useState<Provider>(() => {
     try {
       const p = localStorage.getItem('AI_PROVIDER');
-      return p === 'gemini' || p === 'openrouter' ? p : DEFAULT_PROVIDER;
+      return p === 'gemini' || p === 'openrouter' || p === 'openai' ? p : DEFAULT_PROVIDER;
     } catch { return DEFAULT_PROVIDER; }
   });
 

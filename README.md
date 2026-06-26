@@ -2,7 +2,7 @@
 
 Đưa **design từ ảnh mẫu lên phôi áo/quần trắng** bằng AI, cho Kozmoz Studio (ECZ / Kozmoz / LO).
 
-Cùng stack với `banner-ai` / `shoe-sale`: Vite + React + TS + Tailwind + Electron, gọi AI image-gen qua **OpenRouter** hoặc **Google Gemini** (Nano Banana).
+Cùng stack với `banner-ai` / `shoe-sale`: Vite + React + TS + Tailwind + Electron, gọi AI image-gen qua **OpenRouter**, **Google Gemini** (Nano Banana) hoặc **OpenAI** (GPT Image, gọi thẳng).
 
 ## Luồng dùng (2 ô upload bên trái)
 
@@ -20,10 +20,11 @@ npm install
 npm run dev        # mở http://127.0.0.1:5173
 ```
 
-Lần đầu chạy app sẽ hỏi **API key** — chọn provider (OpenRouter/Gemini) và dán key. Key lưu trên máy (localStorage), không gửi đi đâu khác.
+Lần đầu chạy app sẽ hỏi **API key** — chọn provider (OpenRouter / Gemini / OpenAI) và dán key. Key lưu trên máy (localStorage), không gửi đi đâu khác.
 
 - OpenRouter key: https://openrouter.ai/keys
 - Gemini key: https://aistudio.google.com/apikey
+- OpenAI key: https://platform.openai.com/api-keys
 
 ## Chạy bản desktop (Electron)
 
