@@ -80,12 +80,25 @@ const SEL = {
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
 const RESULT_TIMEOUT_MS = 4 * 60 * 1000;
 const SLOW_MO_MS = 120;
+const LOGIN_GRACE_MS = 8000; // đã đăng nhập rồi vẫn chờ chừng này để user kịp ĐỔI TÀI KHOẢN
+const CLOSE_IDLE_MS = 6000;  // xong hết, hàng đợi rảnh -> tự đóng cửa sổ sau chừng này
 // ---------------------------------------------------------------------------
 
 let context = null;
 let page = null;
 let queue = Promise.resolve();
+let closeTimer = null; // hẹn giờ tự đóng cửa sổ khi rảnh
 const noop = () => {};
+
+function cancelCloseTimer() { if (closeTimer) { clearTimeout(closeTimer); closeTimer = null; } }
+function scheduleCloseTimer(log) {
+  cancelCloseTimer();
+  closeTimer = setTimeout(() => {
+    closeTimer = null;
+    log('Hoàn tất — tự đóng cửa sổ Chrome.');
+    close().catch(() => {});
+  }, CLOSE_IDLE_MS);
+}
 
 async function firstVisible(scope, candidates, timeout = 8000) {
   const deadline = Date.now() + timeout;
@@ -484,35 +497,46 @@ async function readModels(log) {
  * rồi ĐỌC DANH SÁCH MODEL từ tài khoản -> trả về cho app hiển thị trong dropdown.
  */
 function prepare(payload, log = noop) {
+  cancelCloseTimer();
   const run = queue.then(async () => {
-    await ensureContext(payload.profileDir, log, false); // thử ngầm
-    await page.goto(GEMINI_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
-    if (await isLoggedIn()) {
-      log('Đã đăng nhập sẵn — Gemini chạy ngầm, sẵn sàng.');
-      return []; // (tạm) chưa đọc model động: nút đổi model Gemini chưa có selector đúng
-    }
-    log('Chưa đăng nhập — mở cửa sổ Chrome để bạn đăng nhập Google (1 lần).');
+    cancelCloseTimer();
+    // LUÔN mở cửa sổ (kể cả đã login) để user đăng nhập / ĐỔI TÀI KHOẢN; đóng context cũ trước.
     await close();
-    await ensureContext(payload.profileDir, log, true);
-    try {
-      await ensureGeminiReady(log, true);
-      log('Đăng nhập xong — đóng cửa sổ. Từ giờ Gemini chạy NGẦM.');
-      await close();
-      return [];
-    } catch (e) {
-      log(`Chưa xác nhận đăng nhập (${e.message || e}) — giữ cửa sổ mở để bạn đăng nhập tiếp.`);
-      return [];
+    await ensureContext(payload.profileDir, log, true); // hiện cửa sổ
+    await page.goto(GEMINI_URL, { waitUntil: 'domcontentloaded', timeout: 60000 }).catch(() => {});
+    log('Cửa sổ đã mở — đăng nhập hoặc ĐỔI TÀI KHOẢN nếu muốn. Sẽ tự đóng sau khi xác nhận.');
+
+    const deadline = Date.now() + LOGIN_TIMEOUT_MS;
+    let confirmedSince = 0;
+    while (Date.now() < deadline) {
+      if (await isLoggedIn()) {
+        if (!confirmedSince) { confirmedSince = Date.now(); log('Đã đăng nhập — chờ vài giây phòng khi bạn muốn đổi tài khoản…'); }
+        if (Date.now() - confirmedSince >= LOGIN_GRACE_MS) break; // ổn định -> đóng
+      } else {
+        confirmedSince = 0; // đang đăng nhập/đổi tài khoản -> chờ tiếp
+      }
+      await page.waitForTimeout(1500);
     }
+
+    if (confirmedSince) { log('✅ Xác nhận đăng nhập — đóng cửa sổ, từ giờ chạy NGẦM.'); await close(); }
+    else log('Hết thời gian chờ đăng nhập — giữ cửa sổ mở để bạn tiếp tục.');
+    return [];
   });
   queue = run.catch(() => []);
   return run;
 }
 
-/** API chính: tạo 1 ảnh NGẦM (xếp hàng đợi -> chạy tuần tự). */
+/** API chính: tạo 1 ảnh NGẦM (xếp hàng đợi -> chạy tuần tự). Xong hết -> tự đóng cửa sổ. */
 function generate(payload, log = noop) {
+  cancelCloseTimer();
   const run = queue.then(async () => {
-    await ensureContext(payload.profileDir, log, false);
-    return generateOnce({ prompt: payload.prompt, images: payload.images, downloadDir: payload.downloadDir, model: payload.model }, log);
+    cancelCloseTimer();
+    try {
+      await ensureContext(payload.profileDir, log, false);
+      return await generateOnce({ prompt: payload.prompt, images: payload.images, downloadDir: payload.downloadDir, model: payload.model }, log);
+    } finally {
+      scheduleCloseTimer(log); // hết việc -> hẹn đóng; có việc mới sẽ huỷ hẹn
+    }
   });
   queue = run.catch(() => {});
   return run;

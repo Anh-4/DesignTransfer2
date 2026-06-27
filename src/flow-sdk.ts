@@ -15,7 +15,7 @@ export const CUSTOM_MODEL_ID = '__custom__';
 // Nhà cung cấp AI hỗ trợ. Mỗi provider có API key + danh sách model riêng.
 // 'googleflow' / 'geminiweb' đặc biệt: KHÔNG dùng API key, điều khiển web qua Playwright
 // (chỉ chạy trên bản desktop, dựa vào window.flowBridge / window.geminiBridge).
-export type Provider = 'openrouter' | 'gemini' | 'openai' | 'googleflow' | 'geminiweb';
+export type Provider = 'openrouter' | 'gemini' | 'openai' | 'googleflow' | 'geminiweb' | 'chatgpt';
 export interface ProviderInfo {
   id: Provider;
   label: string;
@@ -30,6 +30,7 @@ export const PROVIDERS: ProviderInfo[] = [
   { id: 'openai',     label: 'OpenAI (GPT)',  storageKey: 'OPENAI_API_KEY',     envKey: 'VITE_OPENAI_API_KEY',     keyUrl: 'https://platform.openai.com/api-keys' },
   { id: 'googleflow', label: 'Google Flow (automation)',      storageKey: '', envKey: '', keyUrl: 'https://labs.google/fx/tools/flow', noKey: true },
   { id: 'geminiweb',  label: 'Gemini web (Nano Banana Pro)', storageKey: '', envKey: '', keyUrl: 'https://gemini.google.com/app', noKey: true },
+  { id: 'chatgpt',    label: 'ChatGPT (automation)',         storageKey: '', envKey: '', keyUrl: 'https://chatgpt.com', noKey: true },
 ];
 export const DEFAULT_PROVIDER: Provider = 'openrouter';
 
@@ -41,12 +42,15 @@ export const isFlowAvailable = (): boolean =>
   typeof window !== 'undefined' && !!(window as any).flowBridge?.available;
 export const isGeminiWebAvailable = (): boolean =>
   typeof window !== 'undefined' && !!(window as any).geminiBridge?.available;
+export const isChatGPTAvailable = (): boolean =>
+  typeof window !== 'undefined' && !!(window as any).chatgptBridge?.available;
 
 // Danh sách provider hiển thị: ẩn provider automation khi không phải bản desktop.
 export const availableProviders = (): ProviderInfo[] =>
   PROVIDERS.filter((p) =>
     (p.id !== 'googleflow' || isFlowAvailable()) &&
-    (p.id !== 'geminiweb' || isGeminiWebAvailable())
+    (p.id !== 'geminiweb' || isGeminiWebAvailable()) &&
+    (p.id !== 'chatgpt' || isChatGPTAvailable())
   );
 
 // Model ảnh theo từng provider (slug đúng theo từng nền tảng).
@@ -77,6 +81,10 @@ export const MODELS_BY_PROVIDER: Record<Provider, ImageModel[]> = {
     { id: '3.1 Pro',        label: '3.1 Pro (mạnh nhất)' },
     { id: '3.5 Flash',      label: '3.5 Flash' },
     { id: '3.1 Flash-Lite', label: '3.1 Flash-Lite' },
+  ],
+  // ChatGPT (automation): tạo ảnh bằng tài khoản ChatGPT (model mặc định). Chỉ là nhãn.
+  chatgpt: [
+    { id: 'auto', label: 'GPT (mặc định)' },
   ],
 };
 
@@ -315,6 +323,22 @@ async function generateWithGeminiWeb(opts: GenOpts): Promise<MediaResult> {
   return storeResult(out.mimeType || 'image/png', out.base64);
 }
 
+/** Sinh ảnh qua ChatGPT (Playwright trong Electron main) — không dùng API key. */
+async function generateWithChatGPT(opts: GenOpts): Promise<MediaResult> {
+  const bridge = (window as any).chatgptBridge;
+  if (!bridge?.available) throw new Error('Provider ChatGPT chỉ chạy trên bản desktop (.exe).');
+
+  const images = (opts.referenceImageMediaIds ?? [])
+    .map((id) => registry.get(id))
+    .filter((m): m is { base64: string; mimeType: string } => !!m)
+    .map((m) => ({ base64: m.base64, mimeType: m.mimeType }));
+  if (!images.length) throw new Error('Thiếu ảnh tham chiếu để gửi cho ChatGPT.');
+
+  const out = await bridge.generate({ prompt: opts.prompt, images, aspectRatio: opts.aspectRatio, model: opts.model });
+  if (!out?.base64) throw new Error('ChatGPT không trả về ảnh.');
+  return storeResult(out.mimeType || 'image/png', out.base64);
+}
+
 export const Flow = {
   media: {
     // filter giữ lại cho tương thích chữ ký gốc, hiện luôn lọc ảnh.
@@ -326,6 +350,7 @@ export const Flow = {
       const provider = opts.provider ?? DEFAULT_PROVIDER;
       if (provider === 'googleflow') return generateWithGoogleFlow(opts); // không cần key
       if (provider === 'geminiweb') return generateWithGeminiWeb(opts);   // không cần key
+      if (provider === 'chatgpt') return generateWithChatGPT(opts);       // không cần key
       const key = getApiKey(provider);
       if (provider === 'gemini') return generateWithGemini(opts, key);
       if (provider === 'openai') return generateWithOpenAI(opts, key);

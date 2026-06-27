@@ -5,6 +5,7 @@ const { app, BrowserWindow, shell, ipcMain } = require('electron');
 const path = require('node:path');
 const flowRunner = require('./flow-runner.cjs');
 const geminiRunner = require('./gemini-runner.cjs');
+const chatgptRunner = require('./chatgpt-runner.cjs');
 
 // URL GitHub Pages của app (username trên github.io luôn viết thường).
 const APP_URL = 'https://anh-4.github.io/DesignTransfer2/';
@@ -84,6 +85,22 @@ ipcMain.handle('gemini:generate', async (event, payload) => {
   return geminiRunner.generate({ ...payload, ...geminiPaths() }, geminiLogger(event));
 });
 
+// IPC: provider "ChatGPT (automation)" — profile riêng cho ChatGPT.
+const chatgptPaths = () => ({
+  profileDir: path.join(app.getPath('userData'), 'chatgpt-profile'),
+  downloadDir: app.getPath('downloads'),
+});
+const chatgptLogger = (event) => (msg) => {
+  console.log('[chatgpt]', msg);
+  try { event.sender.send('chatgpt:log', msg); } catch {}
+};
+ipcMain.handle('chatgpt:open', async (event) => {
+  return chatgptRunner.prepare({ ...chatgptPaths() }, chatgptLogger(event));
+});
+ipcMain.handle('chatgpt:generate', async (event, payload) => {
+  return chatgptRunner.generate({ ...payload, ...chatgptPaths() }, chatgptLogger(event));
+});
+
 app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => {
@@ -96,4 +113,4 @@ app.on('window-all-closed', () => {
 });
 
 // Đóng Chrome automation khi thoát app.
-app.on('before-quit', () => { flowRunner.close(); geminiRunner.close(); });
+app.on('before-quit', () => { flowRunner.close(); geminiRunner.close(); chatgptRunner.close(); });

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flow, MODELS_BY_PROVIDER, CUSTOM_MODEL_ID, Provider, DEFAULT_PROVIDER, getProviderInfo, isFlowAvailable, isGeminiWebAvailable } from './flow-sdk';
+import { Flow, MODELS_BY_PROVIDER, CUSTOM_MODEL_ID, Provider, DEFAULT_PROVIDER, getProviderInfo, isFlowAvailable, isGeminiWebAvailable, isChatGPTAvailable } from './flow-sdk';
 import { SegmentedToggle, ZoomModal, Dropdown } from './components/Primitives';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { InputState, GeneratedResult, AspectRatio, MediaItem, ProductType } from './types';
@@ -184,6 +184,7 @@ export default function App() {
       const p = localStorage.getItem('AI_PROVIDER');
       if (p === 'googleflow') return isFlowAvailable() ? 'googleflow' : DEFAULT_PROVIDER;
       if (p === 'geminiweb') return isGeminiWebAvailable() ? 'geminiweb' : DEFAULT_PROVIDER;
+      if (p === 'chatgpt') return isChatGPTAvailable() ? 'chatgpt' : DEFAULT_PROVIDER;
       return p === 'gemini' || p === 'openrouter' || p === 'openai' ? p : DEFAULT_PROVIDER;
     } catch { return DEFAULT_PROVIDER; }
   });
@@ -234,6 +235,7 @@ export default function App() {
     setApiKeyModalOpen(false);
     // Chọn provider automation -> mở ngay Chrome + vào web để đăng nhập (không đợi bấm Tạo).
     if (p === 'googleflow') (window as any).flowBridge?.open?.().catch(() => {});
+    if (p === 'chatgpt') (window as any).chatgptBridge?.open?.().catch(() => {});
     if (p === 'geminiweb') {
       // open() trả về danh sách model đọc từ tài khoản -> đổ vào dropdown.
       (window as any).geminiBridge?.open?.()

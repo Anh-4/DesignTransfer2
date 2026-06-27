@@ -28,3 +28,15 @@ contextBridge.exposeInMainWorld('geminiBridge', {
     return () => ipcRenderer.removeListener('gemini:log', h);
   },
 });
+
+// Provider automation ChatGPT (tài khoản ChatGPT Plus/Pro). Cùng cơ chế.
+contextBridge.exposeInMainWorld('chatgptBridge', {
+  available: true,
+  open: () => ipcRenderer.invoke('chatgpt:open'),
+  generate: (payload) => ipcRenderer.invoke('chatgpt:generate', payload),
+  onLog: (cb) => {
+    const h = (_e, msg) => cb(msg);
+    ipcRenderer.on('chatgpt:log', h);
+    return () => ipcRenderer.removeListener('chatgpt:log', h);
+  },
+});
