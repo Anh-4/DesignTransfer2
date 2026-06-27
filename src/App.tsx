@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Flow, MODELS_BY_PROVIDER, CUSTOM_MODEL_ID, Provider, DEFAULT_PROVIDER, getProviderInfo } from './flow-sdk';
+import { Flow, MODELS_BY_PROVIDER, CUSTOM_MODEL_ID, Provider, DEFAULT_PROVIDER, getProviderInfo, isFlowAvailable, isGeminiWebAvailable } from './flow-sdk';
 import { SegmentedToggle, ZoomModal, Dropdown } from './components/Primitives';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { InputState, GeneratedResult, AspectRatio, MediaItem, ProductType } from './types';
@@ -182,6 +182,8 @@ export default function App() {
   const [provider, setProvider] = useState<Provider>(() => {
     try {
       const p = localStorage.getItem('AI_PROVIDER');
+      if (p === 'googleflow') return isFlowAvailable() ? 'googleflow' : DEFAULT_PROVIDER;
+      if (p === 'geminiweb') return isGeminiWebAvailable() ? 'geminiweb' : DEFAULT_PROVIDER;
       return p === 'gemini' || p === 'openrouter' || p === 'openai' ? p : DEFAULT_PROVIDER;
     } catch { return DEFAULT_PROVIDER; }
   });
@@ -189,6 +191,8 @@ export default function App() {
   // Model AI dùng để sinh ảnh (theo provider). 'Khác' -> nhập model ID thủ công.
   const [model, setModel] = useState<string>(MODELS_BY_PROVIDER[provider][0].id);
   const [customModel, setCustomModel] = useState('');
+  // Model đọc động từ tài khoản Gemini (sau khi đăng nhập) -> đổ vào dropdown.
+  const [geminiModels, setGeminiModels] = useState<{ value: string; label: string }[] | null>(null);
 
   // Đổi provider: đảm bảo model thuộc danh sách của provider mới.
   useEffect(() => {
@@ -199,6 +203,7 @@ export default function App() {
   // Mỗi khi mở app: hiện popup nếu provider hiện tại chưa có key (env hoặc localStorage).
   useEffect(() => {
     const info = getProviderInfo(provider);
+    if (info.noKey) return; // provider như Google Flow không cần key
     const envKey = (import.meta as any).env?.[info.envKey];
     if (!envKey && !readKeyFor(provider)) setApiKeyModalOpen(true);
   }, []);
@@ -221,11 +226,26 @@ export default function App() {
 
   const saveApiKey = (p: Provider, key: string) => {
     try {
-      localStorage.setItem(getProviderInfo(p).storageKey, key);
+      const info = getProviderInfo(p);
+      if (!info.noKey && info.storageKey) localStorage.setItem(info.storageKey, key);
       localStorage.setItem('AI_PROVIDER', p);
     } catch {}
     setProvider(p);
     setApiKeyModalOpen(false);
+    // Chọn provider automation -> mở ngay Chrome + vào web để đăng nhập (không đợi bấm Tạo).
+    if (p === 'googleflow') (window as any).flowBridge?.open?.().catch(() => {});
+    if (p === 'geminiweb') {
+      // open() trả về danh sách model đọc từ tài khoản -> đổ vào dropdown.
+      (window as any).geminiBridge?.open?.()
+        .then((models: string[]) => {
+          if (Array.isArray(models) && models.length) {
+            const items = models.map((m) => ({ value: m, label: m }));
+            setGeminiModels(items);
+            setModel(items[0].value);
+          }
+        })
+        .catch(() => {});
+    }
   };
 
   // Chọn ảnh cho 1 trong 3 ô.
@@ -299,8 +319,13 @@ export default function App() {
     Flow.download({ base64: r.base64, mimeType: r.mimeType, filename: `design-${Date.now()}.${ext}` });
   };
 
+  // Provider Gemini web: dùng model đọc động từ tài khoản (nếu đã có); còn lại dùng list tĩnh.
+  const baseModels =
+    provider === 'geminiweb' && geminiModels && geminiModels.length
+      ? geminiModels
+      : MODELS_BY_PROVIDER[provider].map((m) => ({ value: m.id, label: m.label }));
   const modelItems = [
-    ...MODELS_BY_PROVIDER[provider].map((m) => ({ value: m.id, label: m.label })),
+    ...baseModels,
     { value: CUSTOM_MODEL_ID, label: 'Khác (nhập model ID)…' },
   ];
 
@@ -441,7 +466,7 @@ export default function App() {
 
       <ApiKeyModal
         isOpen={apiKeyModalOpen}
-        required={!readKeyFor(provider) && !(import.meta as any).env?.[getProviderInfo(provider).envKey]}
+        required={!getProviderInfo(provider).noKey && !readKeyFor(provider) && !(import.meta as any).env?.[getProviderInfo(provider).envKey]}
         provider={provider}
         getKeyFor={readKeyFor}
         onSave={saveApiKey}

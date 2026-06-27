@@ -1,8 +1,8 @@
 {
   "name": "design-transfer-2",
   "private": true,
-  "version": "0.5.0",
-  "description": "Design Transfer 2 - đưa design từ ảnh mẫu lên phôi áo/quần trắng bằng AI (OpenRouter, Google Gemini hoặc OpenAI GPT) cho Kozmoz Studio",
+  "version": "0.6.0",
+  "description": "Design Transfer 2 - đưa design từ ảnh mẫu lên phôi áo/quần trắng bằng AI (API: OpenRouter/Gemini/OpenAI; hoặc automation web Google Flow/Gemini) cho Kozmoz Studio",
   "author": "Kozmoz Studio",
   "main": "electron/main.cjs",
   "type": "module",
@@ -14,6 +14,7 @@
     "dist:win": "npm run build && electron-builder --win portable"
   },
   "dependencies": {
+    "playwright-core": "^1.61.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
@@ -40,7 +41,11 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "node_modules/playwright-core/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/playwright-core/**/*"
     ],
     "win": {
       "target": "portable"

@@ -13,23 +13,41 @@ export interface ImageModel { id: string; label: string }
 export const CUSTOM_MODEL_ID = '__custom__';
 
 // Nhà cung cấp AI hỗ trợ. Mỗi provider có API key + danh sách model riêng.
-export type Provider = 'openrouter' | 'gemini' | 'openai';
+// 'googleflow' / 'geminiweb' đặc biệt: KHÔNG dùng API key, điều khiển web qua Playwright
+// (chỉ chạy trên bản desktop, dựa vào window.flowBridge / window.geminiBridge).
+export type Provider = 'openrouter' | 'gemini' | 'openai' | 'googleflow' | 'geminiweb';
 export interface ProviderInfo {
   id: Provider;
   label: string;
   storageKey: string; // key lưu trong localStorage
   envKey: string;     // tên biến env nhúng lúc build (team nội bộ)
   keyUrl: string;     // trang lấy API key
+  noKey?: boolean;    // true = không cần API key (vd Google Flow automation)
 }
 export const PROVIDERS: ProviderInfo[] = [
   { id: 'openrouter', label: 'OpenRouter',    storageKey: 'OPENROUTER_API_KEY', envKey: 'VITE_OPENROUTER_API_KEY', keyUrl: 'https://openrouter.ai/keys' },
   { id: 'gemini',     label: 'Google Gemini', storageKey: 'GEMINI_API_KEY',     envKey: 'VITE_GEMINI_API_KEY',     keyUrl: 'https://aistudio.google.com/apikey' },
   { id: 'openai',     label: 'OpenAI (GPT)',  storageKey: 'OPENAI_API_KEY',     envKey: 'VITE_OPENAI_API_KEY',     keyUrl: 'https://platform.openai.com/api-keys' },
+  { id: 'googleflow', label: 'Google Flow (automation)',      storageKey: '', envKey: '', keyUrl: 'https://labs.google/fx/tools/flow', noKey: true },
+  { id: 'geminiweb',  label: 'Gemini web (Nano Banana Pro)', storageKey: '', envKey: '', keyUrl: 'https://gemini.google.com/app', noKey: true },
 ];
 export const DEFAULT_PROVIDER: Provider = 'openrouter';
 
 export const getProviderInfo = (p: Provider): ProviderInfo =>
   PROVIDERS.find((x) => x.id === p) ?? PROVIDERS[0];
+
+// Provider automation chỉ dùng được khi chạy trong Electron (có cầu nối bridge).
+export const isFlowAvailable = (): boolean =>
+  typeof window !== 'undefined' && !!(window as any).flowBridge?.available;
+export const isGeminiWebAvailable = (): boolean =>
+  typeof window !== 'undefined' && !!(window as any).geminiBridge?.available;
+
+// Danh sách provider hiển thị: ẩn provider automation khi không phải bản desktop.
+export const availableProviders = (): ProviderInfo[] =>
+  PROVIDERS.filter((p) =>
+    (p.id !== 'googleflow' || isFlowAvailable()) &&
+    (p.id !== 'geminiweb' || isGeminiWebAvailable())
+  );
 
 // Model ảnh theo từng provider (slug đúng theo từng nền tảng).
 // Nano Banana (Gemini image) là model mạnh nhất cho việc "đưa design lên phôi" -> để đầu danh sách.
@@ -48,6 +66,17 @@ export const MODELS_BY_PROVIDER: Record<Provider, ImageModel[]> = {
   openai: [
     { id: 'gpt-image-1',      label: 'GPT Image 1' },
     { id: 'gpt-image-1-mini', label: 'GPT Image 1 Mini' },
+  ],
+  // Google Flow (automation): chọn model ngay trên web Flow. Đây chỉ là nhãn.
+  googleflow: [
+    { id: 'nano-banana-pro', label: '🍌 Nano Banana Pro' },
+    { id: 'nano-banana',     label: '🍌 Nano Banana' },
+  ],
+  // Gemini web (automation): id = ĐÚNG tên model trong menu Gemini (để automation chọn khớp).
+  geminiweb: [
+    { id: '3.1 Pro',        label: '3.1 Pro (mạnh nhất)' },
+    { id: '3.5 Flash',      label: '3.5 Flash' },
+    { id: '3.1 Flash-Lite', label: '3.1 Flash-Lite' },
   ],
 };
 
@@ -249,6 +278,43 @@ async function generateWithOpenAI(opts: GenOpts, key: string): Promise<MediaResu
   throw new Error('OpenAI không trả về ảnh. Thử lại, đổi mô tả hoặc đổi model.');
 }
 
+/** Sinh ảnh qua Google Flow (Playwright trong Electron main) — không dùng API key. */
+async function generateWithGoogleFlow(opts: GenOpts): Promise<MediaResult> {
+  const bridge = (window as any).flowBridge;
+  if (!bridge?.available) throw new Error('Provider Google Flow chỉ chạy trên bản desktop (.exe).');
+
+  const images = (opts.referenceImageMediaIds ?? [])
+    .map((id) => registry.get(id))
+    .filter((m): m is { base64: string; mimeType: string } => !!m)
+    .map((m) => ({ base64: m.base64, mimeType: m.mimeType }));
+  if (!images.length) throw new Error('Thiếu ảnh tham chiếu để gửi cho Flow.');
+
+  const out = await bridge.generate({
+    prompt: opts.prompt,
+    images,
+    aspectRatio: opts.aspectRatio,
+    model: opts.model,
+  });
+  if (!out?.base64) throw new Error('Flow không trả về ảnh.');
+  return storeResult(out.mimeType || 'image/png', out.base64);
+}
+
+/** Sinh ảnh qua Gemini web (Playwright trong Electron main) — không dùng API key. */
+async function generateWithGeminiWeb(opts: GenOpts): Promise<MediaResult> {
+  const bridge = (window as any).geminiBridge;
+  if (!bridge?.available) throw new Error('Provider Gemini web chỉ chạy trên bản desktop (.exe).');
+
+  const images = (opts.referenceImageMediaIds ?? [])
+    .map((id) => registry.get(id))
+    .filter((m): m is { base64: string; mimeType: string } => !!m)
+    .map((m) => ({ base64: m.base64, mimeType: m.mimeType }));
+  if (!images.length) throw new Error('Thiếu ảnh tham chiếu để gửi cho Gemini.');
+
+  const out = await bridge.generate({ prompt: opts.prompt, images, aspectRatio: opts.aspectRatio, model: opts.model });
+  if (!out?.base64) throw new Error('Gemini không trả về ảnh.');
+  return storeResult(out.mimeType || 'image/png', out.base64);
+}
+
 export const Flow = {
   media: {
     // filter giữ lại cho tương thích chữ ký gốc, hiện luôn lọc ảnh.
@@ -258,6 +324,8 @@ export const Flow = {
   generate: {
     image: async (opts: GenOpts & { provider?: Provider }): Promise<MediaResult> => {
       const provider = opts.provider ?? DEFAULT_PROVIDER;
+      if (provider === 'googleflow') return generateWithGoogleFlow(opts); // không cần key
+      if (provider === 'geminiweb') return generateWithGeminiWeb(opts);   // không cần key
       const key = getApiKey(provider);
       if (provider === 'gemini') return generateWithGemini(opts, key);
       if (provider === 'openai') return generateWithOpenAI(opts, key);

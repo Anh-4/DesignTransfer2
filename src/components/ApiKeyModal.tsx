@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { PillButton, Dropdown } from './Primitives';
-import { Provider, PROVIDERS, getProviderInfo } from '../flow-sdk';
+import { Provider, availableProviders, getProviderInfo } from '../flow-sdk';
 
 /**
  * Popup chọn nhà cung cấp (OpenRouter / Gemini) và nhập/đổi API key.
@@ -39,6 +39,7 @@ export const ApiKeyModal: React.FC<{
   };
 
   const save = () => {
+    if (info.noKey) { onSave(selProvider, ''); return; } // provider không cần key (vd Google Flow)
     const k = val.trim();
     if (!k) return;
     onSave(selProvider, k);
@@ -62,43 +63,58 @@ export const ApiKeyModal: React.FC<{
         <Dropdown
           label="Nhà cung cấp"
           value={selProvider}
-          items={PROVIDERS.map((p) => ({ value: p.id, label: p.label }))}
+          items={availableProviders().map((p) => ({ value: p.id, label: p.label }))}
           onChange={changeProvider}
         />
 
-        <p className="text-[11px] text-white/50 leading-relaxed">
-          App dùng key của bạn để tạo ảnh qua <span className="text-white/80">{info.label}</span> (cho mọi model). Lấy key tại{' '}
-          <a
-            href={info.keyUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-amber-400 underline"
-          >
-            {info.keyUrl.replace(/^https?:\/\//, '')}
-          </a>
-          . Key chỉ lưu trên máy bạn.
-        </p>
+        {info.noKey ? (
+          // Provider điều khiển web (Google Flow): không cần key, dùng đăng nhập trình duyệt.
+          <p className="text-[11px] text-white/50 leading-relaxed">
+            <span className="text-white/80">{info.label}</span> không dùng API key. App sẽ mở
+            một cửa sổ Chrome để bạn <span className="text-white/80">đăng nhập Google một lần</span>,
+            rồi tự thao tác trên{' '}
+            <a href={info.keyUrl} target="_blank" rel="noreferrer" className="text-amber-400 underline">
+              {info.keyUrl.replace(/^https?:\/\//, '')}
+            </a>{' '}
+            để tạo ảnh — tiêu Flow Credits của tài khoản đó. Chỉ chạy trên bản desktop.
+          </p>
+        ) : (
+          <>
+            <p className="text-[11px] text-white/50 leading-relaxed">
+              App dùng key của bạn để tạo ảnh qua <span className="text-white/80">{info.label}</span> (cho mọi model). Lấy key tại{' '}
+              <a
+                href={info.keyUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-amber-400 underline"
+              >
+                {info.keyUrl.replace(/^https?:\/\//, '')}
+              </a>
+              . Key chỉ lưu trên máy bạn.
+            </p>
 
-        <div className="relative">
-          <input
-            type={show ? 'text' : 'password'}
-            value={val}
-            onChange={(e) => setVal(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && save()}
-            placeholder={`Dán API key ${info.label} vào đây...`}
-            autoFocus
-            className="w-full border border-[#595959] focus:border-amber-400 rounded-xl px-3 py-2.5 pr-10 bg-transparent text-[12px] text-white placeholder-white/25 focus:outline-none transition-colors"
-          />
-          <button
-            type="button"
-            onClick={() => setShow((s) => !s)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
-          >
-            <span className="material-symbols-outlined text-[16px]">
-              {show ? 'visibility_off' : 'visibility'}
-            </span>
-          </button>
-        </div>
+            <div className="relative">
+              <input
+                type={show ? 'text' : 'password'}
+                value={val}
+                onChange={(e) => setVal(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && save()}
+                placeholder={`Dán API key ${info.label} vào đây...`}
+                autoFocus
+                className="w-full border border-[#595959] focus:border-amber-400 rounded-xl px-3 py-2.5 pr-10 bg-transparent text-[12px] text-white placeholder-white/25 focus:outline-none transition-colors"
+              />
+              <button
+                type="button"
+                onClick={() => setShow((s) => !s)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+              >
+                <span className="material-symbols-outlined text-[16px]">
+                  {show ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
+          </>
+        )}
 
         <div className="flex items-center justify-end gap-2 pt-1">
           {canClose && (
