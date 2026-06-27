@@ -32,6 +32,14 @@ const SEL = {
   signIn: ['a[href*="ServiceLogin"]', 'a[href*="signin"]', 'a:has-text("Sign in")', 'button:has-text("Sign in")', 'a:has-text("Đăng nhập")', 'button:has-text("Đăng nhập")'],
   // Nút "New chat" để bắt đầu cuộc mới (sạch ngữ cảnh).
   newChat: ['button[aria-label*="New chat" i]', 'a[aria-label*="New chat" i]', 'button[aria-label*="trò chuyện mới" i]', 'button:has-text("New chat")'],
+  // Nút "Trò chuyện tạm thời" (Temporary chat) -> KHÔNG lưu lịch sử.
+  tempChat: [
+    '[aria-label*="tạm thời" i]',
+    '[aria-label*="temporary chat" i]',
+    '[aria-label*="temporary" i]',
+    'button:has-text("Trò chuyện tạm thời")',
+    'button:has-text("Temporary chat")',
+  ],
   // Nút mở menu đổi model (aria-label thật: "Mở công cụ chọn chế độ, hiện tại là Flash").
   modelSwitcher: ['[aria-label*="chọn chế độ" i]', '[aria-label*="choose mode" i]', 'button[aria-label*="model" i]'],
   // Input file để upload ảnh (thường ẩn).
@@ -283,8 +291,24 @@ async function attachImages(imagePaths, log) {
 /** 1 lần tạo ảnh: chat mới -> chọn model -> đính kèm ảnh -> prompt -> gửi -> chờ ảnh -> tải về. */
 async function generateOnce({ prompt, images, downloadDir, model }, log) {
   await ensureGeminiReady(log, false);
-  // Bắt đầu cuộc trò chuyện mới cho sạch (nếu có nút).
-  try { const nc = await firstVisible(page, SEL.newChat, 3000); if (nc) await nc.click(); } catch {}
+  // Vào TRÒ CHUYỆN TẠM THỜI để KHÔNG lưu lịch sử; không thấy thì dùng "New chat" thường.
+  try {
+    const temp = await firstVisible(page, SEL.tempChat, 4000);
+    if (temp) {
+      await temp.click();
+      await page.waitForTimeout(1200);
+      log('Đã vào Trò chuyện tạm thời (không lưu lịch sử).');
+    } else {
+      log('⚠️ Không thấy nút Trò chuyện tạm thời — dùng chat thường (sẽ lưu lịch sử).');
+      try {
+        const labels = await page.locator('button, [role="button"]').evaluateAll((els) =>
+          Array.from(new Set(els.filter((e) => e.getBoundingClientRect().width > 0)
+            .map((e) => (e.getAttribute('aria-label') || e.textContent || '').replace(/\s+/g, ' ').trim()).filter(Boolean))));
+          fs.writeFileSync(path.join(downloadDir, 'gemini-buttons.txt'), labels.join('\n'));
+      } catch {}
+      const nc = await firstVisible(page, SEL.newChat, 3000); if (nc) await nc.click();
+    }
+  } catch {}
   await selectModel(model, log); // chọn model theo dropdown trong app (vd "3.1 Pro")
 
   const imagePaths = writeTempImages(images);
