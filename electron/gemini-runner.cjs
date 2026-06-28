@@ -18,7 +18,7 @@ const os = require('node:os');
 // ----------------------------- CONFIG (chỉnh ở đây) -------------------------
 const GEMINI_URL = process.env.GEMINI_WEB_URL || 'https://gemini.google.com/app';
 const RUN_HEADLESS = false; // Google chặn headless -> dùng cửa sổ off-screen (có icon taskbar nhưng chạy được)
-const ALWAYS_VISIBLE = false; // true = luôn hiện cửa sổ (debug); false = chạy ngầm (chỉ hiện khi login)
+const ALWAYS_VISIBLE = false; // true = luôn hiện cửa sổ (quan sát khi tạo ảnh); false = chạy ngầm (chỉ hiện khi login)
 
 const SEL = {
   // Ô soạn câu lệnh (rich-textarea contenteditable).
@@ -75,6 +75,16 @@ const SEL = {
   ],
   // Nút tải ảnh (thanh công cụ hiện khi hover ảnh kết quả).
   downloadBtn: ['button[aria-label*="Tải xuống" i]', 'button[aria-label*="Download" i]', 'button[aria-label*="Tải" i]', '[aria-label*="Download" i]', 'a[download]'],
+  // Nút mở/hiện panel danh sách cuộc trò chuyện (khi sidebar đang thu gọn).
+  mainMenu: ['button[aria-label*="Menu chính" i]', 'button[aria-label*="Main menu" i]', 'button[aria-label*="mở trình đơn" i]', 'button[aria-label*="expand" i]'],
+  // 1 mục cuộc trò chuyện trong sidebar (cuộc mới nhất nằm trên cùng).
+  convItem: ['[data-test-id="conversation"]', '.conversation-items-container .conversation', '.conversation-list .conversation', 'div[role="listitem"]'],
+  // Nút "Tùy chọn khác" (...) của 1 cuộc — hiện khi hover.
+  convOptions: ['button[aria-label*="Tùy chọn khác" i]', 'button[aria-label*="More options" i]', 'button[aria-label*="tùy chọn" i]', 'button[aria-label*="options" i]'],
+  // Mục "Xoá" trong menu của cuộc.
+  deleteItem: ['[role="menuitem"]:has-text("Xoá")', '[role="menuitem"]:has-text("Xóa")', '[role="menuitem"]:has-text("Delete")', 'button:has-text("Xoá")', 'button:has-text("Delete")'],
+  // Nút xác nhận trong hộp thoại xoá.
+  deleteConfirm: ['[data-test-id="confirm-button"]', 'mat-dialog-container button:has-text("Xoá")', 'mat-dialog-container button:has-text("Delete")', 'button:has-text("Xoá")', 'button:has-text("Xóa")', 'button:has-text("Delete")'],
 };
 
 const LOGIN_TIMEOUT_MS = 5 * 60 * 1000;
@@ -301,18 +311,73 @@ async function attachImages(imagePaths, log) {
   throw new Error('Không tìm thấy cách đính kèm ảnh (nút "+"/Tải tệp lên).');
 }
 
+/**
+ * Xoá ĐÚNG cuộc vừa tạo (cuộc mới nhất = item trên cùng sidebar) -> không lưu lịch sử.
+ * An toàn cho tài khoản dùng chung: sau khi xoá kiểm tra URL đã rời convId.
+ */
+async function deleteCurrentChat(log) {
+  try {
+    const m = page.url().match(/\/app\/([\w-]{6,})/i);
+    const convId = m ? m[1] : null;
+    if (!convId) { log('Cuộc đang mở không có id (có thể là chat tạm thời) — bỏ qua xoá.'); return; }
+
+    // Mở panel danh sách cuộc nếu đang thu gọn.
+    if (!(await firstPresent(page, SEL.convItem))) {
+      const menu = await firstVisible(page, SEL.mainMenu, 3000);
+      if (menu) { await menu.click(); await page.waitForTimeout(1000); }
+    }
+
+    const items = page.locator(SEL.convItem.join(', '));
+    const n = await items.count().catch(() => 0);
+    if (!n) { log('Không thấy danh sách cuộc trong sidebar — bỏ qua xoá.'); return; }
+
+    // Cuộc vừa tạo là cuộc MỚI NHẤT -> item đầu tiên.
+    const first = items.first();
+    await first.scrollIntoViewIfNeeded().catch(() => {});
+    await first.hover().catch(() => {});
+    await page.waitForTimeout(400);
+    let opened = false;
+    const opt = first.locator(SEL.convOptions.join(', ')).first();
+    if (await opt.isVisible().catch(() => false)) { await opt.click(); opened = true; }
+    else {
+      // fallback: bấm nút cuối trong item (thường là "...").
+      opened = await first.evaluate((el) => {
+        const b = el.querySelectorAll('button'); if (!b.length) return false;
+        b[b.length - 1].click(); return true;
+      }).catch(() => false);
+    }
+    if (!opened) { log('Không mở được menu "..." của cuộc — bỏ qua xoá.'); return; }
+    await page.waitForTimeout(500);
+
+    const del = await firstVisible(page, SEL.deleteItem, 3000);
+    if (!del) { log('Không thấy mục Xoá.'); await page.keyboard.press('Escape').catch(() => {}); return; }
+    await del.click();
+    await page.waitForTimeout(500);
+
+    const cf = await firstVisible(page, SEL.deleteConfirm, 3000);
+    if (cf) { await cf.click(); await page.waitForTimeout(1000); }
+    else { log('Không thấy nút xác nhận Xoá.'); return; }
+
+    // Xoá cuộc đang mở -> Gemini điều hướng rời convId. Nếu URL vẫn còn id -> cảnh báo.
+    if (page.url().includes(convId)) log('⚠️ Đã bấm xoá nhưng URL vẫn còn cuộc — kiểm tra lại.');
+    else log('Đã xoá cuộc trò chuyện (không lưu lịch sử).');
+  } catch (e) { log('Xoá cuộc lỗi: ' + (e.message || e)); }
+}
+
 /** 1 lần tạo ảnh: chat mới -> chọn model -> đính kèm ảnh -> prompt -> gửi -> chờ ảnh -> tải về. */
 async function generateOnce({ prompt, images, downloadDir, model }, log) {
   await ensureGeminiReady(log, false);
-  // Vào TRÒ CHUYỆN TẠM THỜI để KHÔNG lưu lịch sử; không thấy thì dùng "New chat" thường.
+  // Vào TRÒ CHUYỆN TẠM THỜI để KHÔNG lưu lịch sử; không thấy thì chat thường rồi TỰ XOÁ sau khi tạo.
+  let inTemp = false;
   try {
     const temp = await firstVisible(page, SEL.tempChat, 4000);
     if (temp) {
       await temp.click();
       await page.waitForTimeout(1200);
+      inTemp = true;
       log('Đã vào Trò chuyện tạm thời (không lưu lịch sử).');
     } else {
-      log('⚠️ Không thấy nút Trò chuyện tạm thời — dùng chat thường (sẽ lưu lịch sử).');
+      log('Không thấy nút Trò chuyện tạm thời — dùng chat thường rồi tự xoá sau khi tạo.');
       try {
         const labels = await page.locator('button, [role="button"]').evaluateAll((els) =>
           Array.from(new Set(els.filter((e) => e.getBoundingClientRect().width > 0)
@@ -462,6 +527,8 @@ async function generateOnce({ prompt, images, downloadDir, model }, log) {
 
     const buf = fs.readFileSync(outPath);
     log(`Xong: ${path.basename(outPath)} (${Math.round(buf.length / 1024)} KB)`);
+    // Đã có ảnh rồi -> nếu là chat thường thì xoá để không lưu lịch sử (temp chat thì khỏi).
+    if (!inTemp) { try { await deleteCurrentChat(log); } catch {} }
     return { base64: buf.toString('base64'), mimeType: 'image/png', path: outPath };
   } catch (e) {
     try {
